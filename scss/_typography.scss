@@ -1,0 +1,8 @@
+@use 'custom' as *;
+
+.publication-authors {
+  margin-top: -$blockquote-margin-y;
+  margin-bottom: $blockquote-margin-y;
+  font-size: 80%;
+  color: $gray-600;
+}
