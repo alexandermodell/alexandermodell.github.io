@@ -241,7 +241,7 @@
       const varc = trapezoid(xs, xs.map((x,i)=> (x-mean)*(x-mean)*wts[i]));
       const sd = Math.sqrt(Math.max(varc, 1e-18));
       const skew = trapezoid(xs, xs.map((x,i)=> Math.pow((x-mean)/sd,3)*wts[i]));
-      const kurt = trapezoid(xs, xs.map((x,i)=> Math.pow((x-mean)/sd,4)*wts[i])) - 3;
+      const kurt = trapezoid(xs, xs.map((x,i)=> Math.pow((x-mean)/sd,4)*wts[i]));
 
       mMean.textContent = mean.toFixed(4);
       mVar.textContent  = varc.toFixed(4);
