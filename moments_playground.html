@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Moments Playground</title>
+  <style>
+    :root { --bg:#ffffff; --panel:#f7f7f9; --ink:#111111; --muted:#4b5563; --accent:#1f4b99; --grid:#e5e7eb; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: 'Computer Modern', 'Computer Modern Serif', 'CMU Serif', 'Latin Modern Roman', Georgia, serif; background: var(--bg); color: var(--ink); }
+    header { padding: 20px clamp(16px, 4vw, 36px); border-bottom: 1px solid #e5e7eb; background: linear-gradient(180deg, #ffffff 0%, #fafafa 100%); }
+    h1 { margin: 0 0 6px; font-size: clamp(20px, 2.4vw, 28px); letter-spacing: 0.2px; }
+    p.sub { margin: 0; color: var(--muted); }
+    .wrap { display: grid; grid-template-columns: 360px 1fr; gap: 20px; padding: 24px clamp(16px, 4vw, 36px); }
+    @media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } }
+    .panel { background: var(--panel); border: 1px solid #e5e7eb; border-radius: 16px; padding: 16px; box-shadow: 0 4px 16px rgba(0,0,0,.06); }
+    .panel h2 { margin: 4px 0 12px; font-size: 16px; color: var(--muted); font-weight: 600; }
+    .row { margin: 12px 0 18px; }
+    .row label { display: flex; align-items: center; justify-content: space-between; font-size: 14px; margin-bottom: 6px; color: var(--ink); }
+    .row output { font-variant-numeric: tabular-nums; color: var(--accent); margin-left: 8px; }
+    input[type="range"] { width: 100%; }
+    .hint { color: var(--muted); font-size: 12px; line-height: 1.35; }
+    canvas { width: 100%; height: 520px; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 16px; display: block; }
+    .legend { display:flex; gap:12px; align-items:center; color:var(--muted); font-size:12px; margin-top:8px; flex-wrap:wrap; }
+    .sw { width:12px; height:12px; border-radius: 2px; background:#7aa2ff; border:1px solid #345; }
+    .sw2 { width:12px; height:12px; border-radius: 2px; background:#9bff7a; border:1px solid #345; }
+    .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+    .kpi { background:#ffffff; border:1px solid #e5e7eb; border-radius:12px; padding:10px 12px; }
+    .kpi h3 { margin:0 0 6px; font-size:12px; color:var(--muted); }
+    .kpi .v { font-size:16px; font-variant-numeric: tabular-nums; }
+    .row.inline { display:flex; gap:12px; align-items:center; }
+    .row.inline input[type="number"]{ width: 110px; padding:6px 8px; border-radius:8px; border:1px solid #e5e7eb; background:#ffffff; color:var(--ink); }
+  .ctrl { display:flex; gap:8px; align-items:center; }
+    .btn { border:1px solid #d1d5db; background:#fff; color:#111; border-radius:8px; padding:6px 10px; font-size:12px; cursor:pointer; }
+    .btn:hover{ background:#f3f4f6; }
+  </style>
+  <!-- KaTeX CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" integrity="sha384-n8MVd4RsNIU0tAv4ct0nTaAbDJwPJzDEaqSD1odI+WdtXRGWt2kTvGF9C5JgZh2M" crossorigin="anonymous">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" integrity="sha384-XE93QD2cdxKqgaOn7u5L27Mpi8C9aB6D3EvhczFMMzFKd6QUfHizGqYBFr3R04I0" crossorigin="anonymous"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" integrity="sha384-+VBxd3r6XgURycqtZ117nYw44OOcIax56Z4dCRWbxyPt0Koah1uHoK0o4+/RRE05" crossorigin="anonymous"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      renderMathInElement(document.body, {
+        delimiters: [
+          {left: '$$', right: '$$', display: true},
+          {left: '$', right: '$', display: false},
+          {left: '\(', right: '\)', display: false},
+          {left: '\[', right: '\]', display: true}
+        ],
+        throwOnError: false
+      });
+    });
+  </script>
+</head>
+<body>
+  <header>
+    <h1>Moments Playground</h1>
+    <p class="sub">$X = \mu + \sigma\,\sinh\!\big(\,\delta\,\operatorname{asinh}(Z) + \varepsilon\,\big), \quad Z\sim\mathcal{N}(0,1)$</p>
+  </header>
+  <div class="wrap">
+    <aside class="panel">
+      <h2>Controls</h2>
+      <div class="row">
+        <label>Mean $\mu$ <output id="oMean"></output></label>
+        <div class="ctrl">
+          <input id="mean" type="range" min="-5" max="5" step="0.01" value="0" />
+          <button class="btn" data-reset="mean" data-default="0">Reset</button>
+        </div>
+      </div>
+      <div class="row">
+        <label>Scale $\sigma$ <output id="oStd"></output></label>
+        <div class="ctrl">
+          <input id="std" type="range" min="0.3" max="3" step="0.01" value="1" />
+          <button class="btn" data-reset="std" data-default="1">Reset</button>
+        </div>
+      </div>
+      <div class="row">
+        <label>Skew $\varepsilon$ <output id="oEps"></output></label>
+        <div class="ctrl">
+          <input id="eps" type="range" min="-3" max="3" step="0.01" value="0" />
+          <button class="btn" data-reset="eps" data-default="0">Reset</button>
+        </div>
+      </div>
+      <div class="row">
+        <label>Tail weight $\delta$ <output id="oDelta"></output></label>
+        <div class="ctrl">
+          <input id="delta" type="range" min="0.4" max="2.0" step="0.01" value="1" />
+          <button class="btn" data-reset="delta" data-default="1">Reset</button>
+        </div>
+      </div>
+      <div class="row inline">
+        <label style="min-width:120px">Axis x-range</label>
+        <input id="xmin" type="number" value="-10" step="0.5" />
+        <span style="color:var(--muted)">to</span>
+        <input id="xmax" type="number" value="10" step="0.5" />
+        <button class="btn" id="resetAxis">Reset</button>
+      </div>
+      <div class="row inline">
+        <label style="min-width:120px">Y-axis max</label>
+        <input id="ymax" type="number" value="0.5" step="0.05" />
+        <button class="btn" id="resetY">Reset</button>
+      </div>
+      <!-- <p class="hint">PDF of X: f_X(x) = (1/σ)·φ(z)·(1/δ)·cosh((asinh(y)−ε)/δ)/√(1+y²) with y=(x−μ)/σ, z=sinh((asinh(y)−ε)/δ), φ standard normal pdf. Sliders ε and δ are <i>shape</i> knobs, not literal moments.</p> -->
+    </aside>
+    <main class="panel">
+      <h2>PDF</h2>
+      <canvas id="plot" width="1000" height="520"></canvas>
+      <!-- <div class="legend"><span class="sw"></span> SAS PDF</div> -->
+      <div class="grid2" style="margin-top:12px">
+        <div class="kpi"><h3> $\mu := \mathbb{E}[X]$</h3><div class="v" id="mMean">—</div></div>
+        <div class="kpi"><h3> $\sigma^2 := \operatorname{var}(X) = \mathbb{E}[(X - \mu)^2]$</h3><div class="v" id="mVar">—</div></div>
+        <div class="kpi"><h3> $\operatorname{skewness}(X) = \mathbb{E}\left[\left(\frac{X-\mu}{\sigma}\right)^3\right]$</h3><div class="v" id="mSkew">—</div></div>
+        <div class="kpi"><h3> $\operatorname{kurtosis}(X) = \mathbb{E}\left[\left(\frac{X-\mu}{\sigma}\right)^4\right]$</h3><div class="v" id="mKurt">—</div></div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // Elements
+    const meanEl = document.getElementById('mean');
+    const stdEl  = document.getElementById('std');
+    const epsEl  = document.getElementById('eps');
+    const delEl  = document.getElementById('delta');
+    const xminEl = document.getElementById('xmin');
+    const xmaxEl = document.getElementById('xmax');
+    const ymaxEl = document.getElementById('ymax');
+    const oMean = document.getElementById('oMean');
+    const oStd  = document.getElementById('oStd');
+    const oEps  = document.getElementById('oEps');
+    const oDel  = document.getElementById('oDelta');
+
+    const mMean = document.getElementById('mMean');
+    const mVar  = document.getElementById('mVar');
+    const mSkew = document.getElementById('mSkew');
+    const mKurt = document.getElementById('mKurt');
+
+    ;[meanEl,stdEl,epsEl,delEl,xminEl,xmaxEl,ymaxEl].forEach(el=>el.addEventListener('input', draw));
+
+    // Reset buttons
+    document.querySelectorAll('button[data-reset]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const id = btn.getAttribute('data-reset');
+        const def = btn.getAttribute('data-default');
+        const el = document.getElementById(id);
+        if(el){ el.value = def; draw(); }
+      });
+    });
+    document.getElementById('resetAxis').addEventListener('click', ()=>{ xminEl.value = -10; xmaxEl.value = 10; draw(); });
+    document.getElementById('resetY').addEventListener('click', ()=>{ ymaxEl.value = 0.5; draw(); });
+
+    function phi(z){ return Math.exp(-0.5*z*z)/Math.sqrt(2*Math.PI); }
+
+    // SAS pdf via inverse transform from y -> z
+    function sas_pdf_x(x, mu, sigma, eps, delta){
+      const y = (x - mu)/sigma;
+      const w = Math.asinh(y);
+      const u = (w - eps)/delta;
+      const z = Math.sinh(u);
+      const jac = (1/delta) * Math.cosh(u) / Math.sqrt(1 + y*y);
+      const fy = phi(z) * jac;          // pdf of Y
+      return (1/ sigma) * fy;           // pdf of X
+    }
+
+    
+    function trapezoid(xs, ys){
+      let s=0; for(let i=1;i<xs.length;i++){ s += 0.5*(ys[i-1]+ys[i])*(xs[i]-xs[i-1]); } return s;
+    }
+
+    function draw(){
+      const mu = parseFloat(meanEl.value);
+      const s  = parseFloat(stdEl.value);
+      const e  = parseFloat(epsEl.value);
+      const d  = parseFloat(delEl.value);
+      const xMin = parseFloat(xminEl.value);
+      const xMax = parseFloat(xmaxEl.value);
+
+      oMean.textContent = mu.toFixed(2);
+      oStd.textContent  = s.toFixed(2);
+      oEps.textContent  = e.toFixed(2);
+      oDel.textContent  = d.toFixed(2);
+
+      // grid setup (fixed axes)
+      const canvas = document.getElementById('plot');
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      const padL=50, padR=20, padT=20, padB=40;
+      const W = canvas.width - padL - padR;
+      const H = canvas.height - padT - padB;
+      const N = 1200;
+      const xs = Array.from({length:N}, (_,i)=> xMin + i*(xMax-xMin)/(N-1));
+
+      // evaluate pdfs
+      const ys = xs.map(x => sas_pdf_x(x, mu, s, e, d));
+      
+
+      // renormalize SAS numerically over [xMin, xMax] to reduce truncation error
+      const area = trapezoid(xs, ys);
+      const ysR = area>0 ? ys.map(v=>v/area) : ys;
+
+      // compute dynamic y scale from both curves
+      const yMax = Math.max(1e-9, parseFloat(ymaxEl.value));
+      const X = x => padL + (x - xMin) / (xMax - xMin) * W;
+      const Y = y => padT + (1 - y / yMax) * H;
+
+      // grid
+      ctx.strokeStyle = '#e5e7eb'; ctx.lineWidth = 1;
+      ctx.beginPath();
+      for(let i=0;i<=10;i++){ const gx = padL + i/10*W; ctx.moveTo(gx, padT); ctx.lineTo(gx, padT+H); }
+      for(let i=0;i<=6;i++){ const gy = padT + i/6*H; ctx.moveTo(padL, gy); ctx.lineTo(padL+W, gy); }
+      ctx.stroke();
+
+      // axis labels
+      ctx.fillStyle = '#374151'; ctx.font = '12px serif'; ctx.textAlign='center';
+      for(let i=0;i<=10;i++){ const xv = xMin + i/10*(xMax-xMin); ctx.fillText(xv.toFixed(1), padL + i/10*W, padT+H+18); }
+      ctx.textAlign='right';
+      for(let i=0;i<=6;i++){ const yv = (yMax * i/6).toFixed(3); ctx.fillText(yv, padL-6, padT + (1 - i/6)*H + 4); }
+
+      // shade area under curve
+      ctx.beginPath();
+      ctx.moveTo(X(xs[0]), Y(0));
+      for(let i=0;i<N;i++) ctx.lineTo(X(xs[i]), Y(ysR[i]));
+      ctx.lineTo(X(xs[N-1]), Y(0));
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(31,75,153,0.15)';
+      ctx.fill();
+
+      // plot SAS outline
+      ctx.strokeStyle = '#1f4b99'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(X(xs[0]), Y(ysR[0]));
+      for(let i=1;i<N;i++) ctx.lineTo(X(xs[i]), Y(ysR[i]));
+      ctx.stroke();
+
+      
+
+      // numerical moments over [xMin,xMax]
+      const dxs = xs.map((x,i)=> i? x - xs[i-1] : 0);
+      // normalized weights
+      const wts = ysR;
+      const m1 = trapezoid(xs, ysR); // should be 1
+      const mean = trapezoid(xs, xs.map((x,i)=> x*wts[i]));
+      const varc = trapezoid(xs, xs.map((x,i)=> (x-mean)*(x-mean)*wts[i]));
+      const sd = Math.sqrt(Math.max(varc, 1e-18));
+      const skew = trapezoid(xs, xs.map((x,i)=> Math.pow((x-mean)/sd,3)*wts[i]));
+      const kurt = trapezoid(xs, xs.map((x,i)=> Math.pow((x-mean)/sd,4)*wts[i])) - 3;
+
+      mMean.textContent = mean.toFixed(4);
+      mVar.textContent  = varc.toFixed(4);
+      mSkew.textContent = (isFinite(skew)? skew : NaN).toFixed(4);
+      mKurt.textContent = (isFinite(kurt)? kurt : NaN).toFixed(4);
+    }
+
+    draw();
+  </script>
+  <!-- KaTeX JS + auto-render -->
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" crossorigin="anonymous"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" crossorigin="anonymous"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function(){
+      if (window.renderMathInElement) {
+        renderMathInElement(document.body, {
+          delimiters: [
+            {left: '$$', right: '$$', display: true},
+            {left: '\(', right: '\)', display: false}
+          ]
+        });
+      }
+    });
+  </script>
+</body>
+</html>
