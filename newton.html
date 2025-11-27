@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Newton's Method: f vs f′</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    body {
+      margin: 0;
+      padding: 16px;
+      background: #f5f5f5;
+      color: #111827;
+      display: flex;
+      justify-content: center;
+    }
+    .container {
+      max-width: 1100px;
+      width: 100%;
+      background: #ffffff;
+      border-radius: 12px;
+      padding: 16px 18px 18px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+      border: 1px solid #e5e7eb;
+    }
+    h1 {
+      font-size: 1.3rem;
+      margin: 0 0 12px;
+      text-align: center;
+      font-weight: 600;
+    }
+    .plots-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .plot-panel {
+      flex: 1 1 320px;
+      min-width: 320px;
+      background: #ffffff;
+      border-radius: 8px;
+      border: 1px solid #e5e7eb;
+      padding: 6px 6px 8px;
+    }
+    canvas {
+      width: 100%;
+      height: 320px;
+      border-radius: 4px;
+      background: #ffffff;
+      display: block;
+    }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      padding-top: 8px;
+      border-top: 1px solid #e5e7eb;
+      font-size: 0.9rem;
+    }
+    .control-label {
+      flex: 0 0 auto;
+      font-weight: 500;
+    }
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex: 1 1 280px;
+    }
+    input[type="range"] {
+      flex: 1;
+    }
+    input[type="number"] {
+      width: 70px;
+      padding: 2px 4px;
+      border-radius: 4px;
+      border: 1px solid #d1d5db;
+      font-size: 0.9rem;
+    }
+    .buttons {
+      display: flex;
+      flex: 1 1 260px;
+      gap: 6px;
+      justify-content: flex-end;
+    }
+    button {
+      flex: 1;
+      min-width: 70px;
+      padding: 4px 6px;
+      border-radius: 999px;
+      border: 1px solid #d1d5db;
+      background: #f9fafb;
+      color: #111827;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: background 0.1s ease, border-color 0.1s ease;
+    }
+    button:hover {
+      background: #eef2ff;
+      border-color: #6366f1;
+    }
+    button.primary {
+      background: #4f46e5;
+      border-color: #4f46e5;
+      color: white;
+      font-weight: 500;
+    }
+    button.primary:hover {
+      background: #4338ca;
+      border-color: #4338ca;
+    }
+    button:disabled {
+      opacity: 0.4;
+      cursor: default;
+      background: #f9fafb;
+      border-color: #d1d5db;
+    }
+
+    @media (max-width: 900px) {
+      body {
+        padding: 8px;
+      }
+      .container {
+        padding: 12px;
+      }
+      canvas {
+        height: 260px;
+      }
+      .buttons {
+        justify-content: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Newton's Method on f(x) = √(1 + x²)</h1>
+
+    <div class="plots-row">
+      <!-- Left: f and quadratic -->
+      <div class="plot-panel">
+        <canvas id="plot-f" width="480" height="320"></canvas>
+      </div>
+      <!-- Right: f' and tangent -->
+      <div class="plot-panel">
+        <canvas id="plot-fp" width="480" height="320"></canvas>
+      </div>
+    </div>
+
+    <div class="controls">
+      <div class="control-label">
+        x₀:
+      </div>
+      <div class="slider-row">
+        <input id="x0-slider" type="range" min="-3" max="3" step="0.01" value="0.8" />
+        <input id="x0-input" type="number" min="-10" max="10" step="0.01" value="0.8" />
+      </div>
+      <div class="buttons">
+        <button id="reset-btn">Reset</button>
+        <button id="next-btn">Next</button>
+        <button id="step-btn">Step</button>
+        <button id="run-btn" class="primary">Auto-run</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ----- Math helpers -----
+    function f(x) {
+      return Math.sqrt(1 + x * x);
+    }
+    function fp(x) {
+      return x / Math.sqrt(1 + x * x);
+    }
+    function fpp(x) {
+      return 1 / Math.pow(1 + x * x, 1.5);
+    }
+    function newtonStep(x) {
+      // For this f, the Newton update simplifies to x_{k+1} = -x_k^3
+      return -x * x * x;
+    }
+
+    // ----- Canvas + coordinate setup -----
+    const canvasF = document.getElementById("plot-f");
+    const ctxF = canvasF.getContext("2d");
+    const widthF = canvasF.width;
+    const heightF = canvasF.height;
+
+    const canvasFp = document.getElementById("plot-fp");
+    const ctxFp = canvasFp.getContext("2d");
+    const widthFp = canvasFp.width;
+    const heightFp = canvasFp.height;
+
+    // World ranges
+    const X_MIN = -3;
+    const X_MAX = 3;
+
+    const YF_MIN = 0.8;
+    const YF_MAX = 3.4;
+
+    const YFP_MIN = -1.2;
+    const YFP_MAX = 1.2;
+
+    function xToCanvasF(x) {
+      return ((x - X_MIN) / (X_MAX - X_MIN)) * widthF;
+    }
+    function yToCanvasF(y) {
+      return heightF - ((y - YF_MIN) / (YF_MAX - YF_MIN)) * heightF;
+    }
+
+    function xToCanvasFp(x) {
+      return ((x - X_MIN) / (X_MAX - X_MIN)) * widthFp;
+    }
+    function yToCanvasFp(y) {
+      return heightFp - ((y - YFP_MIN) / (YFP_MAX - YFP_MIN)) * heightFp;
+    }
+
+    // ----- State -----
+    let x0 = 0.8;
+    let iterates = [x0];   // x_k values
+    let running = false;
+    let runTimer = null;
+
+    // animPhase:
+    // 0 = only current point
+    // 1 = add approximating quadratic/tangent
+    // 2 = add next point + vertical lines
+    let animPhase = 0;
+
+    // ----- DOM -----
+    const x0Slider = document.getElementById("x0-slider");
+    const x0Input = document.getElementById("x0-input");
+    const resetBtn = document.getElementById("reset-btn");
+    const nextBtn = document.getElementById("next-btn");
+    const stepBtn = document.getElementById("step-btn");
+    const runBtn = document.getElementById("run-btn");
+
+    // ----- Drawing: f panel -----
+    function drawAxesF() {
+      ctxF.save();
+      ctxF.clearRect(0, 0, widthF, heightF);
+      ctxF.fillStyle = "#ffffff";
+      ctxF.fillRect(0, 0, widthF, heightF);
+
+      ctxF.strokeStyle = "#9ca3af";
+      ctxF.lineWidth = 1;
+      ctxF.beginPath();
+      // x-axis y=0
+      const y0 = yToCanvasF(0);
+      ctxF.moveTo(0, y0);
+      ctxF.lineTo(widthF, y0);
+      // y-axis x=0
+      const x0c = xToCanvasF(0);
+      ctxF.moveTo(x0c, 0);
+      ctxF.lineTo(x0c, heightF);
+      ctxF.stroke();
+
+      ctxF.restore();
+    }
+
+    function drawFunctionCurveF() {
+      ctxF.save();
+      ctxF.strokeStyle = "#2563eb"; // blue
+      ctxF.lineWidth = 1.5;
+      ctxF.beginPath();
+      const steps = 400;
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const x = X_MIN + t * (X_MAX - X_MIN);
+        const y = f(x);
+        const cx = xToCanvasF(x);
+        const cy = yToCanvasF(y);
+        if (i === 0) ctxF.moveTo(cx, cy);
+        else ctxF.lineTo(cx, cy);
+      }
+      ctxF.stroke();
+      ctxF.restore();
+    }
+
+    function drawCurrentPointF() {
+      const xk = iterates[iterates.length - 1];
+      if (!isFinite(xk) || xk < X_MIN || xk > X_MAX) return;
+      const yk = f(xk);
+      const cx = xToCanvasF(xk);
+      const cy = yToCanvasF(yk);
+      const y0 = yToCanvasF(0);
+
+      ctxF.save();
+      // vertical line for orientation
+      ctxF.strokeStyle = "#e5a000";
+      ctxF.lineWidth = 1;
+      ctxF.beginPath();
+      ctxF.moveTo(cx, y0);
+      ctxF.lineTo(cx, cy);
+      ctxF.stroke();
+
+      ctxF.fillStyle = "#f59e0b"; // amber
+      ctxF.beginPath();
+      ctxF.arc(cx, cy, 4.5, 0, Math.PI * 2);
+      ctxF.fill();
+      ctxF.restore();
+    }
+
+    function drawQuadraticAndNextF() {
+      if (animPhase === 0) return;
+
+      const xk = iterates[iterates.length - 1];
+      if (!isFinite(xk)) return;
+      const fk = f(xk);
+      const fpkVal = fp(xk);
+      const fppkVal = fpp(xk);
+
+      function q(x) {
+        const dx = x - xk;
+        return fk + fpkVal * dx + 0.5 * fppkVal * dx * dx;
+      }
+
+      // Quadratic over full range
+      ctxF.save();
+      ctxF.setLineDash([5, 4]);
+      ctxF.strokeStyle = "#16a34a"; // green
+      ctxF.lineWidth = 1.2;
+      ctxF.beginPath();
+      const steps = 300;
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const x = X_MIN + t * (X_MAX - X_MIN);
+        const y = q(x);
+        const cx = xToCanvasF(x);
+        const cy = yToCanvasF(y);
+        if (i === 0) ctxF.moveTo(cx, cy);
+        else ctxF.lineTo(cx, cy);
+      }
+      ctxF.stroke();
+      ctxF.setLineDash([]);
+      ctxF.restore();
+
+      if (animPhase >= 2) {
+        const xNext = newtonStep(xk);
+        if (!isFinite(xNext)) return;
+        const clampedNext = Math.max(X_MIN, Math.min(X_MAX, xNext));
+
+        const cxNext = xToCanvasF(clampedNext);
+        const yQuadNext = q(clampedNext);
+        const cyQuadNext = yToCanvasF(yQuadNext);
+
+        const yTrueNext = f(clampedNext);
+        const cyTrueNext = yToCanvasF(yTrueNext);
+
+        ctxF.save();
+        // point on quadratic
+        ctxF.fillStyle = "#f97316"; // orange
+        ctxF.beginPath();
+        ctxF.arc(cxNext, cyQuadNext, 4.5, 0, Math.PI * 2);
+        ctxF.fill();
+
+        // vertical up to true f
+        ctxF.strokeStyle = "#f97316";
+        ctxF.setLineDash([4, 4]);
+        ctxF.lineWidth = 1;
+        ctxF.beginPath();
+        ctxF.moveTo(cxNext, cyQuadNext);
+        ctxF.lineTo(cxNext, cyTrueNext);
+        ctxF.stroke();
+        ctxF.restore();
+      }
+    }
+
+    function redrawF() {
+      drawAxesF();
+      drawFunctionCurveF();
+      drawCurrentPointF();
+      drawQuadraticAndNextF();
+    }
+
+    // ----- Drawing: f' panel -----
+    function drawAxesFp() {
+      ctxFp.save();
+      ctxFp.clearRect(0, 0, widthFp, heightFp);
+      ctxFp.fillStyle = "#ffffff";
+      ctxFp.fillRect(0, 0, widthFp, heightFp);
+
+      ctxFp.strokeStyle = "#9ca3af";
+      ctxFp.lineWidth = 1;
+      ctxFp.beginPath();
+      // x-axis y=0
+      const y0 = yToCanvasFp(0);
+      ctxFp.moveTo(0, y0);
+      ctxFp.lineTo(widthFp, y0);
+      // y-axis x=0
+      const x0c = xToCanvasFp(0);
+      ctxFp.moveTo(x0c, 0);
+      ctxFp.lineTo(x0c, heightFp);
+      ctxFp.stroke();
+
+      ctxFp.restore();
+    }
+
+    function drawFunctionCurveFp() {
+      ctxFp.save();
+      ctxFp.strokeStyle = "#2563eb";
+      ctxFp.lineWidth = 1.5;
+      ctxFp.beginPath();
+      const steps = 400;
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const x = X_MIN + t * (X_MAX - X_MIN);
+        const y = fp(x);
+        const cx = xToCanvasFp(x);
+        const cy = yToCanvasFp(y);
+        if (i === 0) ctxFp.moveTo(cx, cy);
+        else ctxFp.lineTo(cx, cy);
+      }
+      ctxFp.stroke();
+      ctxFp.restore();
+    }
+
+    function drawCurrentPointFp() {
+      const xk = iterates[iterates.length - 1];
+      if (!isFinite(xk) || xk < X_MIN || xk > X_MAX) return;
+      const yk = fp(xk);
+      const cx = xToCanvasFp(xk);
+      const cy = yToCanvasFp(yk);
+      const y0 = yToCanvasFp(0);
+
+      ctxFp.save();
+      ctxFp.strokeStyle = "#e5a000";
+      ctxFp.lineWidth = 1;
+      ctxFp.beginPath();
+      ctxFp.moveTo(cx, y0);
+      ctxFp.lineTo(cx, cy);
+      ctxFp.stroke();
+
+      ctxFp.fillStyle = "#f59e0b";
+      ctxFp.beginPath();
+      ctxFp.arc(cx, cy, 4.5, 0, Math.PI * 2);
+      ctxFp.fill();
+      ctxFp.restore();
+    }
+
+    function drawTangentAndNextFp() {
+      if (animPhase === 0) return;
+
+      const xk = iterates[iterates.length - 1];
+      if (!isFinite(xk)) return;
+      const fpkVal = fp(xk);
+      const fppkVal = fpp(xk);
+
+      // tangent t(x) = f'(xk) + f''(xk)(x - xk)
+      const xmin = X_MIN;
+      const xmax = X_MAX;
+
+      ctxFp.save();
+      ctxFp.strokeStyle = "#16a34a";
+      ctxFp.setLineDash([5, 4]);
+      ctxFp.lineWidth = 1.2;
+      ctxFp.beginPath();
+      const steps = 200;
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const x = xmin + t * (xmax - xmin);
+        const y = fpkVal + fppkVal * (x - xk);
+        const cx = xToCanvasFp(x);
+        const cy = yToCanvasFp(y);
+        if (i === 0) ctxFp.moveTo(cx, cy);
+        else ctxFp.lineTo(cx, cy);
+      }
+      ctxFp.stroke();
+      ctxFp.setLineDash([]);
+      ctxFp.restore();
+
+      if (animPhase >= 2) {
+        const xNext = newtonStep(xk);
+        if (!isFinite(xNext)) return;
+        const clampedNext = Math.max(X_MIN, Math.min(X_MAX, xNext));
+        const cxk = xToCanvasFp(xk);
+        const cyk = yToCanvasFp(fpkVal);
+        const cxNext = xToCanvasFp(clampedNext);
+        const cyNext = yToCanvasFp(0);
+
+        ctxFp.save();
+        ctxFp.fillStyle = "#f97316";
+        ctxFp.beginPath();
+        ctxFp.arc(cxNext, cyNext, 4.5, 0, Math.PI * 2);
+        ctxFp.fill();
+
+        ctxFp.strokeStyle = "#f97316";
+        ctxFp.setLineDash([4, 4]);
+        ctxFp.lineWidth = 1;
+        ctxFp.beginPath();
+        ctxFp.moveTo(cxk, cyk);
+        ctxFp.lineTo(cxNext, cyNext);
+        ctxFp.stroke();
+        ctxFp.restore();
+      }
+    }
+
+    function redrawFp() {
+      drawAxesFp();
+      drawFunctionCurveFp();
+      drawCurrentPointFp();
+      drawTangentAndNextFp();
+    }
+
+    function redrawAll() {
+      redrawF();
+      redrawFp();
+    }
+
+    // ----- Logic -----
+    function reset(newX0) {
+      if (typeof newX0 === "number" && !Number.isNaN(newX0)) {
+        x0 = newX0;
+      }
+      iterates = [x0];
+      animPhase = 0;
+      stopRunning();
+      redrawAll();
+    }
+
+    function fullStepOnce() {
+      const last = iterates[iterates.length - 1];
+      const next = newtonStep(last);
+      iterates.push(next);
+      animPhase = 0;
+      redrawAll();
+    }
+
+    function nextPhase() {
+      if (animPhase === 0) {
+        animPhase = 1; // show quadratic/tangent
+      } else if (animPhase === 1) {
+        animPhase = 2; // show new point + verticals
+      } else if (animPhase === 2) {
+        // commit the step
+        fullStepOnce();
+        return;
+      }
+      redrawAll();
+    }
+
+    function startRunning() {
+      if (running) return;
+      running = true;
+      runBtn.textContent = "Stop";
+      runBtn.classList.remove("primary");
+      runTimer = setInterval(() => {
+        // Auto-run uses full steps
+        if (animPhase !== 0) {
+          fullStepOnce();
+        } else {
+          fullStepOnce();
+        }
+        const last = iterates[iterates.length - 1];
+        if (!isFinite(last) || Math.abs(last) > 20 || iterates.length > 40 || Math.abs(last) < 1e-6) {
+          stopRunning();
+        }
+      }, 450);
+    }
+
+    function stopRunning() {
+      running = false;
+      runBtn.textContent = "Auto-run";
+      runBtn.classList.add("primary");
+      if (runTimer) {
+        clearInterval(runTimer);
+        runTimer = null;
+      }
+    }
+
+    // ----- Events -----
+    x0Slider.addEventListener("input", () => {
+      const val = parseFloat(x0Slider.value);
+      x0Input.value = val.toFixed(2);
+      reset(val);
+    });
+
+    x0Input.addEventListener("change", () => {
+      let val = parseFloat(x0Input.value);
+      if (Number.isNaN(val)) val = 0;
+      if (val < -10) val = -10;
+      if (val > 10) val = 10;
+      x0Input.value = val.toFixed(2);
+      const clamped = Math.max(-3, Math.min(3, val));
+      x0Slider.value = clamped.toString();
+      reset(val);
+    });
+
+    resetBtn.addEventListener("click", () => {
+      reset(x0);
+    });
+
+    nextBtn.addEventListener("click", () => {
+      nextPhase();
+    });
+
+    stepBtn.addEventListener("click", () => {
+      fullStepOnce();
+    });
+
+    runBtn.addEventListener("click", () => {
+      if (running) {
+        stopRunning();
+      } else {
+        startRunning();
+      }
+    });
+
+    // ----- Initial draw -----
+    reset(x0);
+  </script>
+</body>
+</html>
