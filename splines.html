@@ -1,0 +1,618 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Cubic B-spline Function Builder (Single File)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --panel: #ffffff;
+      --text: #0f172a;
+      --muted: #475569;
+      --border: #e2e8f0;
+      --shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+      --accent: #0f172a;
+      --danger: #b91c1c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      background: var(--bg);
+      color: var(--text);
+    }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 18px; }
+    h1 { margin: 0 0 6px; font-size: 22px; }
+    .sub { margin: 0 0 14px; color: var(--muted); font-size: 13px; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 700px 1fr; /* FIXED plot column width */
+      gap: 14px;
+      align-items: start;
+    }
+    @media (max-width: 900px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 900px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+      padding: 14px;
+    }
+
+    .row { display: flex; gap: 12px; }
+    .row > * { flex: 1; }
+
+    label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+    input[type="number"] {
+      width: 100%;
+      padding: 9px 10px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-size: 14px;
+      background: #fff;
+      color: var(--text);
+    }
+
+    .btnrow { display: flex; gap: 10px; }
+    button {
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--text);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 13px;
+      cursor: pointer;
+      box-shadow: var(--shadow);
+    }
+    button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    button.smallBtn { padding: 8px 10px; font-size: 14px; line-height: 1; }
+    button:hover { filter: brightness(0.98); }
+
+    .small { font-size: 12px; color: var(--muted); }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+
+    /* Plot */
+    .plotWrap {
+      width: 700px;   /* FIXED plot width */
+      max-width: 100%;
+      height: 460px;
+    }
+    @media (max-width: 900px) { .plotWrap { height: 420px; width: 100%; } }
+    @media (max-width: 900px) { .plotWrap { height: 420px; } }
+    svg { width: 100%; height: 100%; display: block; }
+
+    /* Coeff list */
+    .coeffList {
+      max-height: 360px;
+      overflow-y: auto; /* vertical scroll only */
+      overflow-x: hidden;
+      padding-right: 6px;
+    }
+    /* Wider sliders: give the middle column more guaranteed space */
+    .coeffItem {
+      display: grid;
+      grid-template-columns: 52px minmax(320px, 1fr) 74px;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    @media (max-width: 900px) {
+      .coeffItem { grid-template-columns: 52px 1fr 74px; }
+    }
+    input[type="range"] { width: 100%; }
+
+    /* Error block */
+    .error {
+      display: none;
+      margin-top: 12px;
+      border: 1px solid #fecaca;
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+      padding: 12px;
+    }
+    .error .title { color: var(--danger); font-weight: 700; font-size: 13px; }
+    pre { margin: 8px 0 0; white-space: pre-wrap; font-size: 12px; color: #334155; }
+
+    /* Toggle */
+    .toggle { display:flex; align-items:center; gap:8px; user-select:none; }
+    .toggle input { transform: translateY(1px); }
+
+    /* Knots */
+    .knots { margin-top: 10px; font-size: 12px; color: var(--muted); }
+    .knots .mono { display:block; overflow-x:auto; white-space: nowrap; padding-top: 6px; }
+
+    /* nBasis stepper */
+    .stepper {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .stepper input[type="number"] { flex: 1; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Cubic B-spline function builder</h1>
+    <p class="sub">Build <span class="mono">f(x) = Σ cᵢ Bᵢ(x)</span> from an open-uniform (clamped) cubic B-spline basis — single HTML file, no external libraries.</p>
+
+    <div class="grid">
+      <div class="card">
+        <div class="plotWrap">
+          <svg id="plot" viewBox="0 0 900 520" preserveAspectRatio="none" aria-label="B-spline plot"></svg>
+        </div>
+        <div class="knots">
+          <div class="small"><strong class="mono" style="font-weight:700;color:var(--text)">Knot vector</strong> (open-uniform / clamped)</div>
+          <span id="knots" class="mono"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row">
+          <div>
+            <label for="a">Domain a</label>
+            <input id="a" type="number" step="0.1" value="0" />
+          </div>
+          <div>
+            <label for="b">Domain b</label>
+            <input id="b" type="number" step="0.1" value="1" />
+          </div>
+        </div>
+
+        <div style="margin-top:12px;">
+          <label for="nBasis"># basis functions (min 4 for cubic)</label>
+          <div class="stepper">
+            <button id="nMinus" class="smallBtn" aria-label="Decrease number of basis functions">−</button>
+            <input id="nBasis" type="number" min="4" max="50" step="1" value="8" />
+            <button id="nPlus" class="smallBtn" aria-label="Increase number of basis functions">+</button>
+          </div>
+          <div class="small" style="margin-top:6px;">Tip: the y-axis scale will stay fixed when you change the number of basis functions.</div>
+        </div>
+
+        <div style="margin-top:12px;" class="toggle">
+          <input id="showBasis" type="checkbox" checked />
+          <label for="showBasis" style="margin:0;">Show basis functions Bᵢ(x)</label>
+        </div>
+
+        <div style="margin-top:12px;" class="btnrow">
+          <button id="random" class="primary">Randomize cᵢ</button>
+          <button id="reset">Reset</button>
+        </div>
+
+        <div style="margin-top:14px;">
+          <div class="small" style="margin-bottom:8px;"><strong style="color:var(--text)">Coefficients</strong> (sliders are wider for easier control)</div>
+          <div id="coeffList" class="coeffList"></div>
+        </div>
+
+        <div class="error" id="bootError">
+          <div class="title">Applet failed to load</div>
+          <pre id="bootErrorText"></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    "use strict";
+
+    /* =============================
+       Math helpers (B-splines)
+       ============================= */
+
+    function linspace(a, b, n) {
+      if (n <= 1) return [a];
+      const out = new Array(n);
+      const h = (b - a) / (n - 1);
+      for (let i = 0; i < n; i++) out[i] = a + i * h;
+      return out;
+    }
+
+    function makeUniformClampedKnots(a, b, nBasis, degree) {
+      // Open-uniform clamped knot vector: length = nBasis + degree + 1
+      const mPlus1 = nBasis + degree + 1;
+      const t = new Array(mPlus1).fill(0);
+
+      // clamp ends
+      for (let i = 0; i <= degree; i++) {
+        t[i] = a;
+        t[mPlus1 - 1 - i] = b;
+      }
+
+      const nInterior = nBasis - degree - 1;
+      if (nInterior > 0) {
+        const interior = linspace(a, b, nInterior + 2).slice(1, -1);
+        for (let j = 0; j < interior.length; j++) {
+          t[degree + 1 + j] = interior[j];
+        }
+      }
+      return t;
+    }
+
+    function bsplineBasis(i, p, x, t) {
+      // Cox–de Boor recursion.
+      if (p === 0) {
+        const left = t[i];
+        const right = t[i + 1];
+        const globalRight = t[t.length - 1];
+        // [left, right) plus special case at global right endpoint
+        if ((x >= left && x < right) || (x === globalRight && right === globalRight)) return 1;
+        return 0;
+      }
+      const d1 = t[i + p] - t[i];
+      const d2 = t[i + p + 1] - t[i + 1];
+      const a = d1 === 0 ? 0 : (x - t[i]) / d1;
+      const b = d2 === 0 ? 0 : (t[i + p + 1] - x) / d2;
+      return a * bsplineBasis(i, p - 1, x, t) + b * bsplineBasis(i + 1, p - 1, x, t);
+    }
+
+    function dot(a, b) {
+      let s = 0;
+      const n = Math.min(a.length, b.length);
+      for (let i = 0; i < n; i++) s += a[i] * b[i];
+      return s;
+    }
+
+    /* =============================
+       Tests (console asserts)
+       ============================= */
+
+    function approxEqual(x, y, tol) {
+      const t = (tol == null) ? 1e-6 : tol;
+      return Math.abs(x - y) <= t;
+    }
+
+    function runSanityTests() {
+      const degree = 3;
+      const a = 0, b = 1;
+      const nBasis = 8;
+      const t = makeUniformClampedKnots(a, b, nBasis, degree);
+
+      // 1) Partition of unity in interior
+      const x = 0.5;
+      const vals = Array.from({ length: nBasis }, (_, i) => bsplineBasis(i, degree, x, t));
+      const sum = vals.reduce((s, v) => s + v, 0);
+      console.assert(approxEqual(sum, 1, 1e-5), "Partition of unity failed", { sum, vals });
+
+      // 2) Non-negativity (allow tiny noise)
+      const minv = Math.min.apply(null, vals);
+      console.assert(minv >= -1e-12, "Non-negativity failed", { minv, vals });
+
+      // 3) Endpoints
+      const leftVals = Array.from({ length: nBasis }, (_, i) => bsplineBasis(i, degree, a, t));
+      console.assert(approxEqual(leftVals[0], 1, 1e-5), "Left endpoint failed", leftVals);
+
+      const rightVals = Array.from({ length: nBasis }, (_, i) => bsplineBasis(i, degree, b, t));
+      console.assert(approxEqual(rightVals[nBasis - 1], 1, 1e-5), "Right endpoint failed", rightVals);
+
+      // 4) Local support: far-away basis ~0
+      const far = 0.02;
+      const vLastNearLeft = bsplineBasis(nBasis - 1, degree, far, t);
+      console.assert(Math.abs(vLastNearLeft) < 1e-8, "Local support sanity failed", { vLastNearLeft });
+
+      console.info("Sanity tests completed.");
+    }
+
+    /* =============================
+       Simple SVG plotting
+       ============================= */
+
+    function svgEl(name, attrs) {
+      const el = document.createElementNS("http://www.w3.org/2000/svg", name);
+      if (attrs) {
+        for (const k of Object.keys(attrs)) el.setAttribute(k, String(attrs[k]));
+      }
+      return el;
+    }
+
+    function pathFromXY(xs, ys, xScale, yScale) {
+      let d = "";
+      for (let i = 0; i < xs.length; i++) {
+        const X = xScale(xs[i]);
+        const Y = yScale(ys[i]);
+        d += (i === 0 ? "M" : "L") + X.toFixed(2) + " " + Y.toFixed(2) + " ";
+      }
+      return d.trim();
+    }
+
+    function chooseYRange(state) {
+      // Preserve a stable y-range when the number of basis functions changes.
+      // Otherwise, let it auto-scale to f (and include basis range [0,1] when shown).
+      let yMin = -0.1;
+      let yMax = 1.1;
+      if (state.showBasis) {
+        yMin = Math.min(yMin, 0);
+        yMax = Math.max(yMax, 1);
+      }
+      yMin = Math.min(yMin, state.fMin);
+      yMax = Math.max(yMax, state.fMax);
+      const pad = 0.15 * (yMax - yMin || 1);
+      return { yMin: yMin - pad, yMax: yMax + pad };
+    }
+
+    function renderPlot(state) {
+      const svg = document.getElementById("plot");
+      while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+      const W = 900, H = 520;
+      const padL = 52, padR = 16, padT = 16, padB = 44;
+      const x0 = padL, x1 = W - padR;
+      const y0 = H - padB, y1 = padT;
+
+      const xMin = state.a;
+      const xMax = state.b;
+      const yMin = state.yMin;
+      const yMax = state.yMax;
+
+      const xScale = (x) => x0 + (x - xMin) * (x1 - x0) / (xMax - xMin || 1);
+      const yScale = (y) => y0 - (y - yMin) * (y0 - y1) / (yMax - yMin || 1);
+
+      // Background
+      svg.appendChild(svgEl("rect", { x: 0, y: 0, width: W, height: H, fill: "white", rx: 14, ry: 14 }));
+
+      // Grid + axes
+      const grid = svgEl("g", { "stroke": "#e2e8f0", "stroke-width": 1 });
+      const ax = svgEl("g", { "stroke": "#94a3b8", "stroke-width": 1.2 });
+      const labels = svgEl("g", { "fill": "#475569", "font-size": 12, "font-family": "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace" });
+
+      const nXTicks = 6;
+      for (let i = 0; i <= nXTicks; i++) {
+        const tx = xMin + (i / nXTicks) * (xMax - xMin);
+        const X = xScale(tx);
+        grid.appendChild(svgEl("line", { x1: X, y1: y1, x2: X, y2: y0 }));
+        labels.appendChild(svgEl("text", { x: X, y: H - 18, "text-anchor": "middle" })).textContent = tx.toFixed(2);
+      }
+
+      const nYTicks = 6;
+      for (let i = 0; i <= nYTicks; i++) {
+        const ty = yMin + (i / nYTicks) * (yMax - yMin);
+        const Y = yScale(ty);
+        grid.appendChild(svgEl("line", { x1: x0, y1: Y, x2: x1, y2: Y }));
+        labels.appendChild(svgEl("text", { x: 10, y: Y + 4, "text-anchor": "start" })).textContent = ty.toFixed(2);
+      }
+
+      ax.appendChild(svgEl("line", { x1: x0, y1: y0, x2: x1, y2: y0 }));
+      ax.appendChild(svgEl("line", { x1: x0, y1: y0, x2: x0, y2: y1 }));
+
+      svg.appendChild(grid);
+      svg.appendChild(ax);
+      svg.appendChild(labels);
+
+      // Basis functions
+      if (state.showBasis) {
+        for (let i = 0; i < state.nBasis; i++) {
+          const ys = state.B[i];
+          svg.appendChild(svgEl("path", {
+            d: pathFromXY(state.xs, ys, xScale, yScale),
+            fill: "none",
+            stroke: "#64748b",
+            "stroke-width": 1.3,
+            "stroke-opacity": 0.35,
+          }));
+        }
+      }
+
+      // f(x)
+      svg.appendChild(svgEl("path", {
+        d: pathFromXY(state.xs, state.f, xScale, yScale),
+        fill: "none",
+        stroke: "#0f172a",
+        "stroke-width": 2.8,
+      }));
+
+      const t = svgEl("text", { x: x0, y: 18, fill: "#0f172a", "font-size": 12 });
+      t.textContent = "f(x) and cubic B-spline basis";
+      svg.appendChild(t);
+    }
+
+    /* =============================
+       UI wiring
+       ============================= */
+
+    function el(id) { return document.getElementById(id); }
+
+    function showBootError(err) {
+      const box = el("bootError");
+      const pre = el("bootErrorText");
+      if (box && pre) {
+        pre.textContent = String(err && err.stack ? err.stack : err);
+        box.style.display = "block";
+      }
+    }
+
+    function fmtKnots(knots) {
+      return "[" + knots.map(k => Number(k).toFixed(3)).join(", ") + "]";
+    }
+
+    function buildCoeffUI(state, onChange) {
+      const list = el("coeffList");
+      list.innerHTML = "";
+      for (let i = 0; i < state.nBasis; i++) {
+        const item = document.createElement("div");
+        item.className = "coeffItem";
+
+        const name = document.createElement("div");
+        name.className = "mono";
+        name.style.fontSize = "12px";
+        name.textContent = "c" + i;
+
+        const slider = document.createElement("input");
+        slider.type = "range";
+        slider.min = "-3";
+        slider.max = "3";
+        slider.step = "0.05";
+        slider.value = String(state.coeffs[i]);
+
+        const val = document.createElement("div");
+        val.className = "mono";
+        val.style.fontSize = "12px";
+        val.style.textAlign = "right";
+        val.textContent = Number(state.coeffs[i]).toFixed(2);
+
+        slider.addEventListener("input", () => {
+          const v = Number(slider.value);
+          val.textContent = v.toFixed(2);
+          onChange(i, v);
+        });
+
+        item.appendChild(name);
+        item.appendChild(slider);
+        item.appendChild(val);
+        list.appendChild(item);
+      }
+    }
+
+    function computeState(a, b, nBasis, coeffs, showBasis) {
+      const degree = 3;
+      const aa = Math.min(a, b);
+      const bb = Math.max(a, b);
+      const knots = makeUniformClampedKnots(aa, bb, nBasis, degree);
+      const xs = linspace(aa, bb, 320);
+
+      const B = new Array(nBasis);
+      for (let i = 0; i < nBasis; i++) {
+        const ys = new Array(xs.length);
+        for (let k = 0; k < xs.length; k++) ys[k] = bsplineBasis(i, degree, xs[k], knots);
+        B[i] = ys;
+      }
+
+      const f = new Array(xs.length);
+      let fMin = Infinity, fMax = -Infinity;
+      for (let k = 0; k < xs.length; k++) {
+        // dot with precomputed basis
+        let fx = 0;
+        for (let i = 0; i < nBasis; i++) fx += coeffs[i] * B[i][k];
+        f[k] = fx;
+        if (fx < fMin) fMin = fx;
+        if (fx > fMax) fMax = fx;
+      }
+
+      return { a: aa, b: bb, nBasis, coeffs, showBasis, degree, knots, xs, B, f, fMin, fMax };
+    }
+
+    function main() {
+      runSanityTests();
+
+      const aInput = el("a");
+      const bInput = el("b");
+      const nInput = el("nBasis");
+      const showBasisInput = el("showBasis");
+      const knotsEl = el("knots");
+      const nMinus = el("nMinus");
+      const nPlus = el("nPlus");
+
+      let state = {
+        a: Number(aInput.value),
+        b: Number(bInput.value),
+        nBasis: Math.max(4, Math.min(50, Number(nInput.value) || 8)),
+        coeffs: [],
+        showBasis: !!showBasisInput.checked,
+      };
+
+      // init coeffs with a visible bump
+      state.coeffs = new Array(state.nBasis).fill(0);
+      state.coeffs[Math.floor(state.nBasis / 2)] = 1;
+
+      // Keep a persistent y-range; when nBasis changes we DO NOT update it.
+      let lastNBasis = state.nBasis;
+      let lockedY = null;
+
+      function recomputeAndRender() {
+        // Keep coeff vector length in sync
+        if (state.coeffs.length !== state.nBasis) {
+          const next = state.coeffs.slice(0, state.nBasis);
+          while (next.length < state.nBasis) next.push(0);
+          if (next.length && next.every(v => Math.abs(v) < 1e-12)) next[Math.floor(next.length / 2)] = 1;
+          state.coeffs = next;
+          buildCoeffUI(state, (i, v) => { state.coeffs[i] = v; recomputeAndRender(); });
+        }
+
+        const computed = computeState(state.a, state.b, state.nBasis, state.coeffs, state.showBasis);
+
+        // Decide y-range:
+        // - if nBasis changed, keep locked range
+        // - otherwise update (auto-scale)
+        const proposed = chooseYRange(computed);
+        if (lockedY == null) lockedY = proposed;
+        if (state.nBasis !== lastNBasis) {
+          // keep current window
+          computed.yMin = lockedY.yMin;
+          computed.yMax = lockedY.yMax;
+        } else {
+          lockedY = proposed;
+          computed.yMin = proposed.yMin;
+          computed.yMax = proposed.yMax;
+        }
+        lastNBasis = state.nBasis;
+
+        knotsEl.textContent = fmtKnots(computed.knots);
+        renderPlot(computed);
+      }
+
+      buildCoeffUI(state, (i, v) => {
+        state.coeffs[i] = v;
+        recomputeAndRender();
+      });
+
+      function clampNBasis(n) {
+        return Math.max(4, Math.min(50, n));
+      }
+
+      function readInputs() {
+        state.a = Number(aInput.value);
+        state.b = Number(bInput.value);
+        state.nBasis = clampNBasis(Number(nInput.value) || 8);
+        state.showBasis = !!showBasisInput.checked;
+      }
+
+      function setNBasis(n) {
+        const nn = clampNBasis(n);
+        nInput.value = String(nn);
+        readInputs();
+        recomputeAndRender();
+      }
+
+      aInput.addEventListener("change", () => { readInputs(); recomputeAndRender(); });
+      bInput.addEventListener("change", () => { readInputs(); recomputeAndRender(); });
+      nInput.addEventListener("change", () => { readInputs(); recomputeAndRender(); });
+      showBasisInput.addEventListener("change", () => { readInputs(); recomputeAndRender(); });
+
+      nMinus.addEventListener("click", () => setNBasis((Number(nInput.value) || state.nBasis) - 1));
+      nPlus.addEventListener("click", () => setNBasis((Number(nInput.value) || state.nBasis) + 1));
+
+      el("random").addEventListener("click", () => {
+        state.coeffs = new Array(state.nBasis).fill(0).map(() => {
+          const u = (Math.random() - 0.5) * 2;
+          return Math.sign(u) * Math.pow(Math.abs(u), 1.7) * 2;
+        });
+        buildCoeffUI(state, (i, v) => { state.coeffs[i] = v; recomputeAndRender(); });
+        recomputeAndRender();
+      });
+
+      el("reset").addEventListener("click", () => {
+        state.coeffs = new Array(state.nBasis).fill(0);
+        // state.coeffs[Math.floor(state.nBasis / 2)] = 1;
+        buildCoeffUI(state, (i, v) => { state.coeffs[i] = v; recomputeAndRender(); });
+        recomputeAndRender();
+      });
+
+      recomputeAndRender();
+      window.addEventListener("resize", () => recomputeAndRender());
+    }
+
+    try {
+      main();
+    } catch (err) {
+      console.error(err);
+      showBootError(err);
+    }
+  </script>
+</body>
+</html>
